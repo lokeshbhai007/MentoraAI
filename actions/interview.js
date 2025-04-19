@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export async function generateQuiz() {
   const { userId } = await auth();
@@ -21,16 +21,17 @@ export async function generateQuiz() {
 
   if (!user) throw new Error("User not found");
 
+  const currentTime = new Date().toISOString();
   const prompt = `
-    Generate 10 technical interview questions for a ${
-      user.industry
-    } professional${
-    user.skills?.length ? ` with expertise in ${user.skills.join(", ")}` : ""
-  }.
-    
+    Generate 10 unique and fresh technical interview questions for a ${user.industry} professional${
+      user.skills?.length ? ` with expertise in ${user.skills.join(", ")}` : ""
+    }.
+
+    Each time this prompt is run, generate a different set of questions.
+
     Each question should be multiple choice with 4 options.
-    
-    Return the response in this JSON format only, no additional text:
+
+    Return ONLY a valid JSON object in this exact format (no markdown, no explanation, no text before/after):
     {
       "questions": [
         {
@@ -41,15 +42,23 @@ export async function generateQuiz() {
         }
       ]
     }
+
+    Timestamp for uniqueness: ${currentTime}
   `;
 
   try {
     const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
-    const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
-    const quiz = JSON.parse(cleanedText);
+    const text = result.response.text();
 
+    // Strip triple backticks and markdown if present
+    const cleanedText = text.replace(/```(?:json)?|```/g, "").trim();
+
+    // Extract valid JSON block from result
+    const jsonStart = cleanedText.indexOf("{");
+    const jsonEnd = cleanedText.lastIndexOf("}");
+    const jsonString = cleanedText.slice(jsonStart, jsonEnd + 1);
+
+    const quiz = JSON.parse(jsonString);
     return quiz.questions;
   } catch (error) {
     console.error("Error generating quiz:", error);
@@ -75,10 +84,8 @@ export async function saveQuizResult(questions, answers, score) {
     explanation: q.explanation,
   }));
 
-  // Get wrong answers
   const wrongAnswers = questionResults.filter((q) => !q.isCorrect);
 
-  // Only generate improvement tips if there are wrong answers
   let improvementTip = null;
   if (wrongAnswers.length > 0) {
     const wrongQuestionsText = wrongAnswers
@@ -101,12 +108,10 @@ export async function saveQuizResult(questions, answers, score) {
 
     try {
       const tipResult = await model.generateContent(improvementPrompt);
-
       improvementTip = tipResult.response.text().trim();
       console.log(improvementTip);
     } catch (error) {
       console.error("Error generating improvement tip:", error);
-      // Continue without improvement tip if generation fails
     }
   }
 

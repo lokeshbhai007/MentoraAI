@@ -27,10 +27,10 @@ export default async function Header() {
       <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/">
           <Image
-            src={"/logo.png"}
+            src={"/logo123.png"}
             alt="Sensai Logo"
-            width={200}
-            height={60}
+            width={600}
+            height={140}
             className="h-12 py-1 w-auto object-contain"
           />
         </Link>
@@ -79,7 +79,7 @@ export default async function Header() {
                 <DropdownMenuItem asChild>
                   <Link href="/interview" className="flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
-                    Interview Prep
+                    Mock Interview
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
